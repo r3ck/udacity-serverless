@@ -1,37 +1,31 @@
-import { APIGatewayProxyEvent, APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda'
 import 'source-map-support/register'
-import { UpdateTodoRequest } from '../../requests/UpdateTodoRequest'
-import { getAuthToken } from '../utils'
+
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
+import * as middy from 'middy'
+import { cors, httpErrorHandler } from 'middy/middlewares'
+
 import { updateTodo } from '../../businessLogic/todos'
+import { UpdateTodoRequest } from '../../requests/UpdateTodoRequest'
+import { getUserId } from '../utils'
 
-export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-
-    const request: UpdateTodoRequest = JSON.parse(event.body)
-    const token = getAuthToken(event)
+export const handler = middy(
+  async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const todoId = event.pathParameters.todoId
-    const item = await updateTodo(todoId, request, token)
-    
-    if (item) {
-        return {
-            statusCode: 200,
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Credentials': true
-            },
-            body: JSON.stringify({
-                item: item
-            })
-        }
-    } else {
-        return {
-            statusCode: 204,
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Credentials': true
-            },
-            body: JSON.stringify({
-                item: item
-            })
-        }
+    const updatedTodo: UpdateTodoRequest = JSON.parse(event.body)
+    const userId = getUserId(event)
+    const updateTodoResponse = await updateTodo(userId, todoId, updatedTodo );
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        item: updateTodoResponse
+      })
     }
-}
+  })
+
+handler
+  .use(httpErrorHandler())
+  .use(
+    cors({
+      credentials: true
+    })
+  )

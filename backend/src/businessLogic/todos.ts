@@ -1,73 +1,60 @@
-import * as uuid from 'uuid'
-
-import { Todo } from '../ports/todos'
+import { TodosAccess } from './todosAcess'
+import { AttachmentUtils } from './attachmentUtils';
 import { TodoItem } from '../models/TodoItem'
-// import { TodoUpdate } from '../models/TodoUpdate'
 import { CreateTodoRequest } from '../requests/CreateTodoRequest'
 import { UpdateTodoRequest } from '../requests/UpdateTodoRequest'
-import { parseUserId } from '../auth/utils'
-import { createLogger } from '../utils/logger'
+// import { createLogger } from '../utils/logger'
+import * as uuid from 'uuid'
+import * as createError from 'http-errors'
 
-const port = new Todo()
-const bucketName = process.env.ATTACHMENTS_S3_BUCKET
-const logger = createLogger('http')
 
-export async function createTodo(token: string, request: CreateTodoRequest): Promise<TodoItem> {
-    const userId = parseUserId(token)
-    const createdAt = new Date().toISOString()
+const todosAccess = new TodosAccess()
+const attachmentUtils = new AttachmentUtils()
+
+export async function createTodo(createTodoRequest: CreateTodoRequest, userId: string): Promise<TodoItem> {
     const todoId = uuid.v4()
-    logger.info(`Creating an item (userid=${userId})`)
-    const item = await port.createTodo({
-        userId: userId,
-        todoId: todoId,
-        createdAt: createdAt,
-        name: request.name,
-        dueDate: request.dueDate,
-        done: false,
-        attachmentUrl: `https://${bucketName}.s3.amazonaws.com/${todoId}`
-    })
-    logger.info('Created item', { 'data': item })
-    return item
+    return await todosAccess.createTodo({
+      todoId: todoId,
+      userId: userId,
+      done: false,
+      attachmentUrl: "",
+      createdAt: new Date().toISOString(),
+      name: createTodoRequest.name,
+      dueDate: createTodoRequest.dueDate
+})
 }
 
-export async function getTodosForUser(token: string): Promise<TodoItem[]> {
-    const userId = parseUserId(token)
-    logger.info(`Getting items (userId=${userId})`)
-    const items = await port.getTodos(userId)
-    logger.info('Found items', { 'data': items })
-    return items
+export const getTodo = async (todoId: string): Promise<TodoItem> => {
+    return await todosAccess.getTodo(todoId);
 }
 
-export async function getTodo(todoId: string, token: string): Promise<TodoItem> {
-    const userId = parseUserId(token)
-    return await port.getTodo(userId, todoId)
+export const getTodosForUser = async (userId: string): Promise<TodoItem[]> => {
+    return await todosAccess.getTodosForUser(userId);
 }
 
-export async function updateTodo(todoId: string, request: UpdateTodoRequest, token: string): Promise<TodoItem> {
-    logger.info(`Updating item (todoId=${todoId})`)
-    const userId = parseUserId(token)
-    const item = await port.getTodo(userId, todoId)  // required to get `createdAt` used by update
-    for (let attribute in request) {
-        item[attribute] = request[attribute]
-    }
-    if (item) {
-        logger.info('Found matching item', { 'data': item })
-        return await port.updateTodo(item)
-    } else {
-        logger.info('Unable to find matching item')
-        return item
-    }
+export async function updateTodo(
+    userId: string, 
+    todoId: string, 
+    updateTodoRequest: UpdateTodoRequest) {
+    const item = await todosAccess.getTodo(todoId)
+    const updateTodoError = new createError.Forbidden('Unauthorized: this is not your TODO');
+    if (item.userId !== userId) {throw updateTodoError}    
+    return await todosAccess.updateTodo(todoId, updateTodoRequest);
 }
 
-export async function deleteTodo(todoId: string, token: string): Promise<TodoItem> {
-    logger.info(`Deleting item (todoId=${todoId})`)
-    const userId = parseUserId(token)
-    const item = await port.getTodo(userId, todoId)  // required to get `createdAt` used by delete
-    if (item) {
-        logger.info('Found matching item', { 'data': item })
-        return await port.deleteTodo(item)
-    } else {
-        logger.info('Unable to find matching item')
-        return item
-    }
+export async function deleteTodo(userId: string, todoId: string) {
+    const item = await todosAccess.getTodo(todoId)
+    const deleteTodoError = new createError.Forbidden('Unauthorized: this is not your TODO');
+    if (item.userId !== userId) {throw deleteTodoError }    
+    return await todosAccess.deleteTodo(todoId);
 }
+
+export async function createAttachmentPresignedUrl(userId: string, todoId: string, attachmentId: string) {
+    const item = await todosAccess.getTodo(todoId)
+    const createAttachmentPresignedUrlError = new createError.Forbidden('Unauthorized: this is not your TODO');
+    if (item.userId !== userId) {throw createAttachmentPresignedUrlError } 
+    return await attachmentUtils.getUploadUrl(attachmentId);
+
+} 
+
+// export const getUploadUrl = (attachmentId: string) => attachmentUtils.getUploadUrl(attachmentId);

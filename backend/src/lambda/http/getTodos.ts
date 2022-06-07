@@ -1,21 +1,24 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, APIGatewayProxyHandler } from 'aws-lambda'
 import 'source-map-support/register'
-import { getAuthToken } from '../utils'
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
+import * as middy from 'middy'
+import { cors } from 'middy/middlewares'
 import { getTodosForUser as getTodosForUser } from '../../businessLogic/todos'
+import { getUserId } from '../utils';
 
-export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-
-    const token = getAuthToken(event)    
-    const items = await getTodosForUser(token)
-    
+export const handler = middy(
+  async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    const userId = getUserId(event)
+    const getTodosForUserResponse = await getTodosForUser(userId);
     return {
-        statusCode: 200,
-        headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Credentials': true
-        },
-        body: JSON.stringify({
-            items: items
-        })
+      statusCode: 200,
+      body: JSON.stringify({
+        item: getTodosForUserResponse
+      })
     }
-}
+  })
+
+handler.use(
+  cors({
+    credentials: true
+  })
+)

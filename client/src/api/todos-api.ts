@@ -35,28 +35,24 @@ export async function patchTodo(
   todoId: string,
   updatedTodo: UpdateTodoRequest
 ): Promise<void> {
-  console.log('Updating item', todoId)
-  const response = await Axios.patch(`${apiEndpoint}/todos/${todoId}`, JSON.stringify(updatedTodo), {
+  await Axios.patch(`${apiEndpoint}/todos/${todoId}`, JSON.stringify(updatedTodo), {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${idToken}`
     }
   })
-  console.log(response.data)
 }
 
 export async function deleteTodo(
   idToken: string,
   todoId: string
 ): Promise<void> {
-  console.log('Deleting item', todoId)
-  const response = await Axios.delete(`${apiEndpoint}/todos/${todoId}`, {
+  await Axios.delete(`${apiEndpoint}/todos/${todoId}`, {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${idToken}`
     }
   })
-  console.log(response.data)
 }
 
 export async function getUploadUrl(
@@ -69,7 +65,6 @@ export async function getUploadUrl(
       'Authorization': `Bearer ${idToken}`
     }
   })
-  console.log(response.data.uploadUrl)
   return response.data.uploadUrl
 }
 

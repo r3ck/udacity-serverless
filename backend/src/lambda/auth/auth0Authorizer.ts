@@ -1,5 +1,6 @@
 import { CustomAuthorizerEvent, CustomAuthorizerResult } from 'aws-lambda'
 import 'source-map-support/register'
+
 import { verify, decode } from 'jsonwebtoken'
 import { createLogger } from '../../utils/logger'
 import Axios from 'axios'
@@ -7,8 +8,7 @@ import { Jwt } from '../../auth/Jwt'
 import { JwtPayload } from '../../auth/JwtPayload'
 
 const logger = createLogger('auth')
-const jwksUrl = 'URL'
-
+const jwksUrl = 'https://dev-03bvj5wo.us.auth0.com/.well-known/jwks.json'
 
 export const handler = async (
   event: CustomAuthorizerEvent
@@ -17,6 +17,7 @@ export const handler = async (
   try {
     const jwtToken = await verifyToken(event.authorizationToken)
     logger.info('User was authorized', jwtToken)
+
     return {
       principalId: jwtToken.sub,
       policyDocument: {
@@ -32,6 +33,7 @@ export const handler = async (
     }
   } catch (e) {
     logger.error('User not authorized', { error: e.message })
+
     return {
       principalId: 'user',
       policyDocument: {
@@ -48,13 +50,12 @@ export const handler = async (
   }
 }
 
+
 async function verifyToken(authHeader: string): Promise<JwtPayload> {
   const token = getToken(authHeader)
   const jwt: Jwt = decode(token, { complete: true }) as Jwt
   const kid = jwt.header.kid
-  const keys = await getJwks()
-  const signingKey = keys.find(key => key.kid === kid)
-  const cert = `-----BEGIN CERTIFICATE-----\n${signingKey.x5c[0]}\n-----END CERTIFICATE-----\n`
+  const cert = await getCert(kid)
   return verify(token, cert, { algorithms: ['RS256'] }) as JwtPayload
 }
 
@@ -67,11 +68,14 @@ function getToken(authHeader: string): string {
   return token
 }
 
-async function getJwks() {
+async function getCert(kid) {
   const response = await Axios.get(jwksUrl, {
     headers: {
       'Content-Type': 'application/json',
     },
   })
-  return response.data.keys
+  const keys = response.data.keys
+  const signingKey = keys.find(key => key.kid === kid)
+  const cert = `-----BEGIN CERTIFICATE-----\n${signingKey.x5c[0]}\n-----END CERTIFICATE-----\n`
+  return cert
 }
